@@ -1,17 +1,17 @@
-from __future__ import print_function
+import os
 import math
 import time
-import os
+import vigra
+import pathlib
 import itertools
 import numpy as np
-from skimage import feature, measure, filters
-from skimage.util.shape import view_as_blocks
-from scipy import ndimage as ndi
-from scipy.spatial import distance
-import vigra
 import pandas as pd
 from multiprocessing import Pool
+from scipy import ndimage as ndi
+from scipy.spatial import distance
 from quanfima import cuda_available
+from skimage.util.shape import view_as_blocks
+from skimage import feature, measure, filters
 
 if cuda_available:
     import pycuda.autoinit
@@ -367,8 +367,8 @@ def _filter_coords(data, ws, th_nval=0.8):
         if any(np.array(lim0) < 0) or any(np.array(lim1) > (size - 1)):
             return False
 
-        z0, y0, x0 = lim0
-        z1, y1, x1 = lim1
+        z0, y0, x0 = [int(x) for x in lim0]
+        z1, y1, x1 = [int(x) for x in lim1]
 
         vol = data[z0:z1, y0:y1, x0:x1]
         nz_vals = np.count_nonzero(vol)
@@ -409,13 +409,14 @@ def extract_patch(data, pt, ws2):
     if any(np.array(lim0) < 0) or any(np.array(lim1) > (data.shape[0] - 1)):
         return None
 
-    z0, y0, x0 = lim0
-    z1, y1, x1 = lim1
+    z0, y0, x0 = [int(x) for x in lim0]
+    z1, y1, x1 = [int(x) for x in lim1]
     patch = data[z0:z1, y0:y1, x0:x1]
     return patch
 
+ eigen_vals = vigra.filters.structureTensorEigenvalues(image=data, innerScale=1, outerScale=1, out=None, sigma_d=0.0, step_size=1.0, window_size=0.0, roi=None)
 
-def orientation_3d_tensor_vigra(data, sigma=0.1):
+def orientation_3d_tensor_vigra(data, sigma=0.1, original=True):
     """Computes 3D orientation from a 3D structure tensor of `data`.
 
     Parameters
@@ -440,26 +441,29 @@ def orientation_3d_tensor_vigra(data, sigma=0.1):
     Ayz = img[:, :, :, 4]
     Azz = img[:, :, :, 5]
 
-    tensor_vals = np.array([[np.mean(Azz), np.mean(Ayz), np.mean(Axz)],
+    tensor_mat = np.array([[np.mean(Azz), np.mean(Ayz), np.mean(Axz)],
                             [np.mean(Ayz), np.mean(Ayy), np.mean(Axy)],
                             [np.mean(Axz), np.mean(Axy), np.mean(Axx)]])
 
-    tensor_vals = tensor_vals[::-1, ::-1]
+    tensor_vals = tensor_mat[::-1, ::-1]
+
 
     eps = 1e-8
     w, v = np.linalg.eig(tensor_vals)
-
+    eigen_values = np.array(w)
     mv = v[:, np.argmin(w)]  # z, y, x
     mv[np.abs(mv) < eps] = 0
 
     G = np.sqrt(mv[2]**2 + mv[1]**2)
     lat = np.arcsin(np.around(G, decimals=3))
     azth = np.arctan(mv[1] / mv[2]) if mv[2] else np.pi/2.
+    if original == True:
+        return (lat, azth)
+    else:
+        return lat, azth, eigen_values
 
-    return (lat, azth)
 
-
-def estimate_tensor(name, skel, data, window_size, output_dir, sigma=0.025, make_output=True):
+def estimate_tensor(name, skel, data, window_size, output_dir, sigma=0.025, make_output=True, original=True):
     """Computes 3D orientation at every point of a skeleton of data.
 
     Estimates 3D orientation at every point of the skeleton `skel` extracted from the binary
@@ -504,6 +508,10 @@ def estimate_tensor(name, skel, data, window_size, output_dir, sigma=0.025, make
     tens_lat_arr = np.zeros_like(skel, dtype=np.float32)
     tens_azth_arr = np.zeros_like(skel, dtype=np.float32)
     skel_est = np.zeros_like(skel, dtype=np.int32)
+    #eigen_arr = np.zeros_like(skel, dtype=np.int32)
+    eigen_arr_x = np.zeros_like(skel, dtype=np.int32)
+    eigen_arr_y = np.zeros_like(skel, dtype=np.int32)
+    eigen_arr_z = np.zeros_like(skel, dtype=np.int32)
 
     ws = np.uint32(window_size)
     ws2 = ws/2
@@ -514,7 +522,7 @@ def estimate_tensor(name, skel, data, window_size, output_dir, sigma=0.025, make
     output_props['n_processes'] = 1
 
     ts = time.time()
-
+    eigen_vals_frame = pd.DataFrame()
     for idx, pt in enumerate(zip(Z, Y, X)):
         lim0 = pt - ws2
         lim1 = pt + ws2
@@ -523,36 +531,50 @@ def estimate_tensor(name, skel, data, window_size, output_dir, sigma=0.025, make
             skel_est[pt] = -1
             continue
 
-        z0, y0, x0 = lim0
-        z1, y1, x1 = lim1
+        z0, y0, x0 = [int(x) for x in lim0]
+        z1, y1, x1 = [int(x) for x in lim1]
 
         area = data[z0:z1, y0:y1, x0:x1]
 
-        lat, azth = orientation_3d_tensor_vigra(area, sigma)
+        if original == True:
+            lat, azth = orientation_3d_tensor_vigra(area, sigma)
+        else:
+            lat, azth, eigen_vals = orientation_3d_tensor_vigra(area, sigma, original=False)
+            eigen_vals_frame = pd.concat([eigen_vals_frame, pd.DataFrame(eigen_vals)])
+            #eigen_arr[pt] = np.array(eigen_vals)
+            #eigen_arr_x[pt] = np.array(eigen_vals[0])
+            #eigen_arr_y[pt] = np.array(eigen_vals[1])
+            #eigen_arr_z[pt] = np.array(eigen_vals[2])
+            print(eigen_vals[0], eigen_vals[1], eigen_vals[2])
 
         tens_lat_arr[pt] = lat
         tens_azth_arr[pt] = azth
         skel_est[pt] = 255
-
+    #eigen_vals = np.column_stack([eigen_arr_x, eigen_arr_y, eigen_arr_z])
+    print(eigen_arr_x.mean())
+    print(eigen_arr_y.mean())
+    print(eigen_arr_z.mean())
     te = time.time()
     output_props['time'] = te-ts
 
-    print("Tensor time: {}s" % (output_props['time']))
+    print(f"Tensor time: {output_props['time']}")
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     if make_output:
-        opath = os.path.join(output_dir, '{}.npy').format(name)
+        opath = os.path.join(output_dir, f'{name}.npy')
         output_props['output_path'] = opath
         output = {'lat': tens_lat_arr, 'azth': tens_azth_arr, 'skeleton': skel_est, 'indices': skel_est > 0}
         output['props'] = output_props
-        np.save(opath, output)
+        np.save(opath, output, allow_pickle=True)
+        if original == True:
+            return output_props
+        else:
+            return output_props, eigen_vals_frame
 
-    return output_props
 
-
-def execute_tensor(patch, sigma):
+def execute_tensor(patch, sigma, original=True):
     """Executes the tensor-based approach for a `patch` and `sigma` for Gaussian smoothing.
 
     Parameters
@@ -572,10 +594,14 @@ def execute_tensor(patch, sigma):
     """
     if patch is None:
         return (0, 0, -1)
+    if original == True:
+        lat, azth = orientation_3d_tensor_vigra(patch, sigma)
+        return (lat, azth, 255)
+    else:
+        lat, azth, eigen_vals = orientation_3d_tensor_vigra(patch, sigma, original=False)
+        print(f"Eigen values: {eigen_vals}")
+        return (lat, azth, 255, eigen_vals)
 
-    lat, azth = orientation_3d_tensor_vigra(patch, sigma)
-
-    return (lat, azth, 255)
 
 
 def unpack_execute_tensor(args):
@@ -585,7 +611,7 @@ def unpack_execute_tensor(args):
 
 
 def estimate_tensor_parallel(name, skel, data, window_size, output_dir, sigma=0.025,
-                             make_output=True, n_processes=4):
+                             make_output=True, n_processes=4, original=True):
     """Computes 3D orientation at every point of a skeleton of data in parallel processes.
 
     Estimates 3D orientation at every point of the skeleton `skel` extracted from the binary
@@ -644,10 +670,15 @@ def estimate_tensor_parallel(name, skel, data, window_size, output_dir, sigma=0.
     pts = zip(Z, Y, X)
     data_patches = [extract_patch(data, pt, ws2) for pt in pts]
     print(len(data_patches))
-    args = zip(data_patches, itertools.repeat(sigma))
+    if original == True:
+        args = zip(data_patches, itertools.repeat(sigma))
+    else:
+        args = zip(data_patches, itertools.repeat(sigma), itertools.repeat(False))
 
     proc_pool = Pool(processes=n_processes)
     results = np.array(proc_pool.map(unpack_execute_tensor, args))
+    print(results.shape)
+    print(results)
     proc_pool.close()
     proc_pool.join()
     proc_pool.terminate()
@@ -655,20 +686,37 @@ def estimate_tensor_parallel(name, skel, data, window_size, output_dir, sigma=0.
     te = time.time()
     output_props['time'] = te-ts
 
-    lat_arr, azth_arr, skel_arr = results.T
-    tens_lat_arr[Z, Y, X] = lat_arr
-    tens_azth_arr[Z, Y, X] = azth_arr
-    skel_est[Z, Y, X] = skel_arr
+    if original == True:
+        #print(results.T)
+        #print(results.T.shape)
+        lat_arr, azth_arr, skel_arr = results.T
+        tens_lat_arr[Z, Y, X] = lat_arr
+        tens_azth_arr[Z, Y, X] = azth_arr
+        skel_est[Z, Y, X] = skel_arr
+        print(tens_lat_arr)
+    else:
+        print(results.T)
+        print(results.T.shape)
+        lat_arr, azth_arr, skel_arr, eigen_vals = results.T
+        tens_lat_arr[Z, Y, X] = lat_arr
+        tens_azth_arr[Z, Y, X] = azth_arr
+        skel_est[Z, Y, X] = skel_arr
+        #tensor_values[Z, Y, X] = tensor_vals
+        print(eigen_vals)
 
-    print("Tensor parallel time: %fs" % (output_props['time']))
+
+    print(f"Tensor parallel time: {output_props['time']}")
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     if make_output:
-        opath = os.path.join(output_dir, '{}.npy').format(name)
+        opath = os.path.join(output_dir, f'{name}.npy')
         output_props['output_path'] = opath
-        output = {'lat': tens_lat_arr, 'azth': tens_azth_arr, 'skeleton': skel_est, 'indices': skel_est > 0}
+        if original:
+            output = {'lat': tens_lat_arr, 'azth': tens_azth_arr, 'skeleton': skel_est, 'indices': skel_est > 0}
+        else:
+            output = {'lat': tens_lat_arr, 'azth': tens_azth_arr, 'skeleton': skel_est, 'indices': skel_est > 0, 'eigen_vals': eigen_vals}
         output['props'] = output_props
         np.save(opath, output)
 
@@ -695,7 +743,8 @@ def _diameter_kernel():
                                 const float *scan_angl_arr,
                                 const float *azth_data,
                                 const float *lat_data,
-                                float *radius_arr)
+                                float *radius_arr,
+								const double M_PI_2 = 3.14159265 / 2.)
     {
         unsigned long blockId, idx;
         blockId = blockIdx.x + blockIdx.y * gridDim.x;
@@ -834,7 +883,7 @@ def estimate_diameter_gpu(skel, data, lat_data, azth_data, n_scan_angles, max_it
         return None
 
     program, diameter3d = _diameter_kernel()
-
+    print(program, diameter3d)
     Z, Y, X = np.int32(skel.nonzero())
     depth, height, width = np.uint32(skel.shape)
 
@@ -891,7 +940,7 @@ def estimate_diameter_gpu(skel, data, lat_data, azth_data, n_scan_angles, max_it
     end.synchronize()
 
     dm_time = start.time_till(end)*1e-3
-    print("Diameter estimation time: %fs" % (dm_time))
+    print(f"Diameter estimation time: {dm_time}")
 
     radius_arr = gpu_radius_arr.get()
 
@@ -962,10 +1011,10 @@ def estimate_diameter_single_run(name, output_dir, data, skel, lat_data, azth_da
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    print('Total diameter execution time: {}'%format(output_props['time']))
+    print(f'Total diameter execution time: {output_props["time"]}')
 
     if make_output:
-        opath = os.path.join(output_dir, '{}.npy').format(name)
+        opath = os.path.join(output_dir, f'{name}.npy')
         output_props['output_path'] = opath
         output['indices'] = skel > 0
         output['props'] = output_props
@@ -1026,7 +1075,6 @@ def estimate_diameter_batches(name, output_dir, data, skel, lat_data, azth_data,
     if not cuda_available:
         print('The pycuda package is not found. The diameter estimation cannot be done.')
         return None
-
     output = dict()
     output_props = dict()
 
@@ -1083,12 +1131,10 @@ def estimate_diameter_batches(name, output_dir, data, skel, lat_data, azth_data,
                 output[data_name][batch_idxs] = gaped_arr[border_gap:border_gap+batch_len]
 
     if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    print('Total diameter execution time: {}'%(output_props['time']))
+        os.makedirs(output_dir)    
 
     if make_output:
-        opath = os.path.join(output_dir, '{}.npy').format(name)
+        opath = pathlib.Path(output_dir).joinpath(f'{name}.npy')
         output_props['output_path'] = opath
         output['indices'] = output['diameter'] > 0
         output['props'] = output_props
@@ -1153,7 +1199,7 @@ def calc_porosity(data):
     """
     total_volume = data.size
     mats = np.unique(data)
-    out = {'Material {}'.format(m): \
+    out = {f'Material {m}': \
                         1. - (float(data[data == m].size) / total_volume) \
                                                         for m in mats[mats > 0]}
     return out

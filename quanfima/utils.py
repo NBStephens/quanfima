@@ -1,12 +1,11 @@
-from __future__ import print_function
 import os
 import operator
 import numpy as np
-from scipy import ndimage as ndi
-from skimage import morphology
 from matplotlib import colors
-from statsmodels.stats.multicomp import MultiComparison
+from skimage import morphology
+from scipy import ndimage as ndi
 from statsmodels.stats.libqsturng import psturng
+from statsmodels.stats.multicomp import MultiComparison
 
 
 def prepare_data(data, dilate_iterations=1, sigma=0.5):
@@ -120,12 +119,12 @@ def calculate_tukey_posthoc(df, column, type_column='type', verbose=True, write=
         print(os.path.join(output_dir, name + '.txt'))
 
     if write:
-        print('Tukey post-hoc ({0})'.format(column), end="", file=fout)
+        print(f'Tukey post-hoc ({column})', end="", file=fout)
         print(tt, end="", file=fout)
         print(mc.groupsunique, end="", file=fout)
 
     if verbose:
-        print('Tukey post-hoc ({0})'%(column))
+        print(f'Tukey post-hoc ({column})')
         print(tt)
         print(mc.groupsunique)
 
@@ -136,15 +135,14 @@ def calculate_tukey_posthoc(df, column, type_column='type', verbose=True, write=
     g1idxs, g2idxs = mc.pairindices
 
     for g1i, g2i, p in zip(g1idxs, g2idxs, pvals):
-        gname = '{}-{}'.format(groups[g1i], groups[g2i])
+        gname = f'{groups[g1i]}-{groups[g2i]}'
         out[gname] = p
 
     min_item = min(out.iteritems(), key=operator.itemgetter(1))
-
     for grp, p in out.items():
         if fout and write:
-            print >> fout, '{}: {}'.format(grp, p)
+            print(f'{fout}, {grp}: {p}')
         if verbose:
-            print(grp, ': ', p)
+            print(f'({grp}, : , {p}')
 
     return out, min_item

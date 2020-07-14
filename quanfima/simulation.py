@@ -1,11 +1,10 @@
-from __future__ import print_function
-import time
 import os
+import time
 import itertools
 import numpy as np
+from sklearn import metrics
 from multiprocessing import Pool
 from scipy import ndimage as ndi
-from sklearn import metrics
 from skimage import filters, morphology, data as skidata, exposure, draw
 
 
@@ -203,9 +202,7 @@ def simulate_fibers(volume_shape, n_fibers=1, radius_lim=(4, 10), length_lim=(0.
                     n_fails = n_fails + 1
 
                     if n_fails == max_fails:
-                        print("The number of fails exceeded. Generated {} fibers".\
-                                    format(n_generated))
-
+                        print(f"The number of fails exceeded. Generated {n_generated} fibers")
                     continue
 
             # Fill the volume
@@ -307,11 +304,7 @@ def generate_datasets(volume_size=(512, 512, 512), n_fibers=50, radius_lim=(4, 1
     if output_dir is not None and not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    np.save(os.path.join(output_dir, 'dataset_fibers_n{}_r{}_{}_g{}_{}_mr{}_i{}.npy'.
-                                            format(n_fibers,
-                                                   radius_lim[0], radius_lim[-1],
-                                                   gap_lim[0], gap_lim[-1],
-                                                   median_rad, int(intersect))), out)
+    np.save(os.path.join(output_dir, f'dataset_fibers_n{n_fibers}_r{radius_lim[0]}_{radius_lim[-1]}_g{gap_lim[0]}_{gap_lim[-1]}_mr{median_rad}_i{int(intersect)}.npy', out)
 
     return out
 
@@ -354,8 +347,7 @@ def simulate_particles(volume_shape, n_particles=1, radius_lim=(3, 30), max_fail
     n_fails = 0
     while n_generated < n_particles and n_fails < max_fails:
         if (n_generated % 100 == 0) or (n_generated == n_particles):
-            print('n_generated = {}/{}, n_fails = {}/{}'.format(n_generated, n_particles,
-                                                                n_fails, max_fails))
+            print(f'n_generated = {n_generated}/{n_particles}, n_fails = {n_fails}/{max_fails}')
 
         offset = [random_in(olim, number=1) for olim in offset_lim]
         offset = np.round(offset).astype(np.int32)
@@ -380,9 +372,7 @@ def simulate_particles(volume_shape, n_particles=1, radius_lim=(3, 30), max_fail
             n_fails = n_fails + 1
 
             if n_fails == max_fails:
-                print("The number of fails exceeded. Generated {} particles".\
-                            format(n_generated))
-
+                print(f"The number of fails exceeded. Generated {n_generated} particles")
             continue
 
         # Fill the volume
@@ -439,12 +429,8 @@ def generate_particle_dataset(volume_size=(512, 512, 512), n_particles=500,
     if output_dir is not None and not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    np.save(os.path.join(output_dir,
-                         'dataset_particles_n{}_r{}_{}.npy'.format(n_particles,
-                                                                   radius_lim[0],
-                                                                   radius_lim[-1])), out)
+    np.save(os.path.join(output_dir, f'dataset_particles_n{n_particles}_r{radius_lim[0]}_{radius_lim[-1]}.npy', out))
     return out
-
 
 def generate_blobs(volume_size, blob_size_fraction=0.1, transparency_ratio=0.5, sigma=90.):
     """Generates random blobs smoothed with Gaussian filter in a volume.
@@ -615,7 +601,7 @@ def additive_noise(params, noise_lvl, smooth_lvl, use_median=True, median_rad=3)
 
         return data_seg
 
-    print('{}: Noise: {} | Smooth: {}'.format(name, noise_lvl, smooth_lvl))
+    print(f'{name}: Noise: {noise_lvl} | Smooth: {smooth_lvl}')
 
     data_ref = data.astype(np.float32)
     data_ref_skel = exposure.rescale_intensity(data_skel,
@@ -645,7 +631,7 @@ def additive_noise(params, noise_lvl, smooth_lvl, use_median=True, median_rad=3)
                                                             pos_label=1,
                                                             average='binary')
 
-    print('Precision: {}, Recall: {}, F1-score: {}'.format(precision, recall, fbeta_score))
+    print(f'Precision: {precision}, Recall: {recall}, F1-score: {fbeta_score}')
 
     data_out = {'data': data_ref,
                 'data_noised': data_noised,
@@ -653,9 +639,7 @@ def additive_noise(params, noise_lvl, smooth_lvl, use_median=True, median_rad=3)
                 'skeleton_noised': data_noised_skel,
                 'seg_noised': data_noised_seg}
 
-    dataset_outpath = os.path.join(output_dir,
-                                'dataset_noised_fibers_{}_nl{}_sl{}.npy'.
-                                            format(name, noise_lvl, smooth_lvl))
+    dataset_outpath = os.path.join(output_dir, f'dataset_noised_fibers_{name}_nl{noise_lvl}_sl{smooth_lvl}.npy')
 
     datasets_props = {'ref_dataset_path': dataset_path,
                       'dataset_path': dataset_outpath,

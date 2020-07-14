@@ -1,23 +1,23 @@
-from __future__ import print_function
 import os
 import math
 import numpy as np
 import matplotlib as mpl
-from skimage import io, filters
-import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import matplotlib.colors as colors
 import mpl_toolkits.axisartist.floating_axes as floating_axes
+from skimage import io
 from matplotlib import cm
-from scipy import ndimage as ndi, interpolate
+from skimage import filters
 from skimage import morphology
-from matplotlib.projections import PolarAxes
-from matplotlib.transforms import Affine2D
-from mpl_toolkits.axisartist.grid_finder import DictFormatter, FixedLocator
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from mpl_toolkits.axisartist.floating_axes import GridHelperCurveLinear
-from utils import geo2rgb
+from quanfima.utils import geo2rgb
 from quanfima import visvis_available
+from matplotlib.transforms import Affine2D
+from matplotlib.projections import PolarAxes
+from scipy import ndimage as ndi, interpolate
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.axisartist.grid_finder import DictFormatter, FixedLocator
+from mpl_toolkits.axisartist.floating_axes import GridHelperCurveLinear
 if visvis_available:
     import visvis as vv
 
@@ -98,12 +98,11 @@ def plot_orientation_map(orient_map, fiber_skel, radius_structure_elem=1,
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        fig.savefig(os.path.join(output_dir, '{}_orientation_map.png'.format(name)),
+        fig.savefig(os.path.join(output_dir, f'{name}_orientation_map.png'),
                     transparent=False,
                     bbox_inches='tight',
                     pad_inches=0.1,
                     dpi=dpi)
-        
     plt.show()
 
 
@@ -180,7 +179,7 @@ def plot_diameter_map(thickness_map, fiber_skel, radius_structure_elem=1,
     if (output_dir is not None) and (name is not None):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        fig.savefig(os.path.join(output_dir, '{}_diameter_map.png'.format(name)),
+        fig.savefig(os.path.join(output_dir, f'{name}_diameter_map.png'),
                     transparent=False,
                     bbox_inches='tight',
                     pad_inches=0.1,
@@ -417,7 +416,7 @@ def plot_polar_heatmap(data, name, interp_factor=5., color_limits=False,
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        fig.savefig(os.path.join(output_dir, '{}_chart.png'.format(name)),
+        fig.savefig(os.path.join(output_dir, f'{name}_chart.png'),
                     transparent=False,
                     bbox_inches='tight',
                     pad_inches=0.1,
@@ -527,7 +526,7 @@ def plot_histogram_fig(data, num_bins, xticks, color, splot_index=111, output_di
             os.makedirs(output_dir)
 
         plt.tight_layout()
-        fig.savefig(os.path.join(output_dir, '{}_chart.png'.format(name)),
+        fig.savefig(os.path.join(output_dir, f'{name}_chart.png'),
                     transparent=False, bbox_inches='tight', pad_inches=0.1, dpi=dpi)
 
     return fig, ax
@@ -604,7 +603,7 @@ def create_pie_chart(data, rngs, colors=['#244268', '#426084', '#67809F', '#95A9
     num_elem = [len(p) for p in data_ranges]
     se = sum(num_elem)
 
-    print('Num of particles: {}'%(se))
+    print(f'Num of particles: {se}')
 
     proc_particles = [n/float(se) * 100.0 for n in num_elem]
 
@@ -651,7 +650,7 @@ def create_pie_chart(data, rngs, colors=['#244268', '#426084', '#67809F', '#95A9
             os.makedirs(output_dir)
 
         plt.tight_layout()
-        fig.savefig(os.path.join(output_dir, '{}_chart.png'.format(name)),
+        fig.savefig(os.path.join(output_dir, f'{name}_chart.png'),
                     bbox_inches='tight', transparent=True, pad_inches=0.1, dpi=dpi)
 
 
@@ -800,7 +799,7 @@ def plot_3d_orientation_map(name, lat_data, azth_data, radius_structure_elem=1,
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        vv.screenshot(os.path.join(output_dir, '{}_3d_orientation.png'.format(name)),
+        vv.screenshot(os.path.join(output_dir, f'{name}_3d_orientation.png'),
                       sf=1, bg=background_color)
     app.Run()
 
@@ -919,14 +918,14 @@ def plot_3d_diameter_map(name, data, unit_scale=1.0, measure_quantity='vox',
     a.axis.zLabel = zlabel
 
     cb = vv.colorbar()
-    cb.SetLabel('Diameter, [{}]'.format(measure_quantity))
+    cb.SetLabel(f'Diameter, [{measure_quantity}]')
     cb._label.position.x += cb_x_offset
 
     if output_dir is not None:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        vv.screenshot(os.path.join(output_dir, '{}_3d_diameter.png'.format(name)),
+        vv.screenshot(os.path.join(output_dir, f'{name}_3d_diameter.png'),
                       sf=1, bg='w')
     app.Run()
 
@@ -990,7 +989,7 @@ def plot_color_wheel(name, output_dir=None, dpi=500, xlabel='Elevation',
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        fig.savefig(os.path.join(output_dir, '{}_color_bar.png'.format(name)),
+        fig.savefig(os.path.join(output_dir, f'{name}_color_bar.png'),
                     transparent=True,
                     bbox_inches='tight',
                     pad_inches=0.1,
@@ -1076,7 +1075,7 @@ def plot_fourier_orientation(data, orient_blocks, block_shape, figsize=(12,12),
             os.makedirs(output_dir)
 
         plt.tight_layout()
-        fig.savefig(os.path.join(output_dir, '{}_fourier_orientation_map.png'.format(name)),
+        fig.savefig(os.path.join(output_dir, f'{name}_fourier_orientation_map.png'),
                     bbox_inches='tight', transparent=True, pad_inches=0.05, dpi=dpi)
 
     plt.show()
