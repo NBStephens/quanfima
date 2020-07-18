@@ -414,8 +414,6 @@ def extract_patch(data, pt, ws2):
     patch = data[z0:z1, y0:y1, x0:x1]
     return patch
 
- eigen_vals = vigra.filters.structureTensorEigenvalues(image=data, innerScale=1, outerScale=1, out=None, sigma_d=0.0, step_size=1.0, window_size=0.0, roi=None)
-
 def orientation_3d_tensor_vigra(data, sigma=0.1, original=True):
     """Computes 3D orientation from a 3D structure tensor of `data`.
 
