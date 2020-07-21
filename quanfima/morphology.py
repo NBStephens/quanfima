@@ -742,7 +742,7 @@ def _diameter_kernel():
                                 const float *azth_data,
                                 const float *lat_data,
                                 float *radius_arr,
-								const double M_PI_2 = 3.14159265 / 2.)
+				const double pi)
     {
         unsigned long blockId, idx;
         blockId = blockIdx.x + blockIdx.y * gridDim.x;
@@ -761,7 +761,7 @@ def _diameter_kernel():
         // Find the diameter
 
         float azth = azth_data[idx];
-        azth += M_PI_2;
+        azth += pi / 2.0;
         float lat = lat_data[idx];
 
         float cy = cosf(lat), sy = sinf(lat);
